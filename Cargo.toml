@@ -1,0 +1,25 @@
+[package]
+name = "corgi3d"
+version = "0.1.0"
+authors = ["Yifang Ma <yifang@near.org>", "Bo Yao <bo@near.org>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.64"
+near-sdk = "2.0.1"
+rand_chacha = "0.3.0"
+rand_core = "*"
+
+[profile.release]
+codegen-units = 1
+# Tell `rustc` to optimize for small code size.
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+# Opt into extra safety checks on arithmetic operations https://stackoverflow.com/a/64136471/249801
+overflow-checks = true
