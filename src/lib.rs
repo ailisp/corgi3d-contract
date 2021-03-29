@@ -47,7 +47,7 @@ pub type TokenId = u64;
 pub type AccountIdHash = Vec<u8>;
 
 // A Corgi
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Default)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Default, Debug)]
 pub struct Corgi {
     pub id: TokenId,
     pub name: String,
@@ -127,7 +127,9 @@ impl Corgi3D {
             self.corgis.remove(&id);
             self.corgi_to_account.remove(&id);
             let account_hash = env::sha256(account.as_bytes());
-            self.account_corgis.get(&account_hash).unwrap().remove(&id);
+            let mut account_corgis = self.account_corgis.get(&account_hash).unwrap();
+            account_corgis.remove(&id);
+            self.account_corgis.insert(&account_hash, &account_corgis);
         } else {
             env::panic(b"Don't have permission to delete corgi");
         }
@@ -570,12 +572,37 @@ mod tests {
             "green".to_string(),
             "haha".to_string(),
         );
-        
+
         // Robert transfers the token to Joe
         contract.transfer(joe(), token_id.clone());
 
         // Check new owner
         let owner = contract.get_token_owner(token_id.clone());
         assert_eq!(joe(), owner, "Token was not transferred after transfer call with escrow.");
+    }
+
+    #[test]
+    fn delete_corgi() {
+        testing_env!(get_context(robert(), 0));
+        let mut contract = Corgi3D::new(robert());
+        let (_, _token_id) = contract.create_corgi(
+            "a".to_string(),
+            "blue".to_string(),
+            "green".to_string(),
+            "haha".to_string(),
+        );
+        assert_eq!(contract.get_corgis_by_owner(robert()).len(), 1);
+
+        let (_, token_id) = contract.create_corgi(
+            "b".to_string(),
+            "black".to_string(),
+            "green".to_string(),
+            "haha".to_string(),
+        );
+        assert_eq!(contract.get_corgis_by_owner(robert()).len(), 2);
+
+        contract.delete_corgi(token_id);
+        assert_eq!(contract.get_corgis_by_owner(robert()).len(), 1);
+        assert_eq!(contract.get_corgis_by_owner(robert())[0].name, "a".to_string());
     }
 }
