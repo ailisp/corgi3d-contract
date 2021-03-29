@@ -430,22 +430,33 @@ mod tests {
         let context = get_context(robert(), 0);
         testing_env!(context);
         let mut contract = Corgi3D::new(robert());
-        contract.mint_token(mike(), 19u64);
-        let owner = contract.get_token_owner(19u64);
-        assert_eq!(mike(), owner, "Unexpected token owner.");
+        let (_, id) = contract.create_corgi(
+            "a".to_string(),
+            "blue".to_string(),
+            "green".to_string(),
+            "haha".to_string(),
+        );
+        let owner = contract.get_token_owner(id);
+        assert_eq!(robert(), owner, "Unexpected token owner.");
     }
 
     #[test]
     #[should_panic(expected = r#"Attempt to transfer a token with no access."#)]
     fn transfer_from_with_no_access_should_fail() {
-        // Mike owns the token.
-        // Robert is trying to transfer it to Robert's account without having access.
+        // Robert owns the token.
+        // Mike is trying to transfer it to Mike's account without having access.
         let context = get_context(robert(), 0);
         testing_env!(context);
         let mut contract = Corgi3D::new(robert());
-        let token_id = 19u64;
-        contract.mint_token(mike(), token_id);
-        contract.transfer_from(mike(), robert(), token_id.clone());
+        let (_, id) = contract.create_corgi(
+            "a".to_string(),
+            "blue".to_string(),
+            "green".to_string(),
+            "haha".to_string(),
+        );
+        let context = get_context(mike(), 0);
+        testing_env!(context);
+        contract.transfer_from(robert(), mike(), id.clone());
     }
 
     #[test]
@@ -456,8 +467,12 @@ mod tests {
         let mut context = get_context(mike(), 0);
         testing_env!(context);
         let mut contract = Corgi3D::new(mike());
-        let token_id = 19u64;
-        contract.mint_token(mike(), token_id);
+        let (_, token_id) = contract.create_corgi(
+            "a".to_string(),
+            "blue".to_string(),
+            "green".to_string(),
+            "haha".to_string(),
+        );
         // Mike grants access to Robert
         contract.grant_access(robert());
 
@@ -480,8 +495,12 @@ mod tests {
         let mut context = get_context(mike(), 0);
         testing_env!(context);
         let mut contract = Corgi3D::new(mike());
-        let token_id = 19u64;
-        contract.mint_token(mike(), token_id);
+        let (_, token_id) = contract.create_corgi(
+            "a".to_string(),
+            "blue".to_string(),
+            "green".to_string(),
+            "haha".to_string(),
+        );
         // Mike grants access to Robert
         contract.grant_access(robert());
 
@@ -498,8 +517,12 @@ mod tests {
 
         testing_env!(get_context(robert(), 0));
         let mut contract = Corgi3D::new(robert());
-        let token_id = 19u64;
-        contract.mint_token(robert(), token_id);
+        let (_, token_id) = contract.create_corgi(
+            "a".to_string(),
+            "blue".to_string(),
+            "green".to_string(),
+            "haha".to_string(),
+        );
 
         // Robert transfers the token to Joe
         contract.transfer_from(robert(), joe(), token_id.clone());
@@ -520,9 +543,12 @@ mod tests {
         let mut context = get_context(mike(), 0);
         testing_env!(context);
         let mut contract = Corgi3D::new(mike());
-        let token_id = 19u64;
-        contract.mint_token(mike(), token_id);
-        // Mike grants access to Robert
+        let (_, token_id) = contract.create_corgi(
+            "a".to_string(),
+            "blue".to_string(),
+            "green".to_string(),
+            "haha".to_string(),
+        ); // Mike grants access to Robert
         contract.grant_access(robert());
 
         // Robert transfers the token to Joe
@@ -538,9 +564,13 @@ mod tests {
 
         testing_env!(get_context(robert(), 0));
         let mut contract = Corgi3D::new(robert());
-        let token_id = 19u64;
-        contract.mint_token(robert(), token_id);
-
+        let (_, token_id) = contract.create_corgi(
+            "a".to_string(),
+            "blue".to_string(),
+            "green".to_string(),
+            "haha".to_string(),
+        );
+        
         // Robert transfers the token to Joe
         contract.transfer(joe(), token_id.clone());
 
