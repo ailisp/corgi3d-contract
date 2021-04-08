@@ -124,12 +124,8 @@ impl Corgi3D {
         let account = self.corgi_to_account.get(&id).unwrap();
         let predecessor = env::predecessor_account_id();
         if account == predecessor || self.check_access(account.clone()) {
+            self.delete_corgi_from_account(id, account);
             self.corgis.remove(&id);
-            self.corgi_to_account.remove(&id);
-            let account_hash = env::sha256(account.as_bytes());
-            let mut account_corgis = self.account_corgis.get(&account_hash).unwrap();
-            account_corgis.remove(&id);
-            self.account_corgis.insert(&account_hash, &account_corgis);
         } else {
             env::panic(b"Don't have permission to delete corgi");
         }
@@ -231,26 +227,24 @@ impl NEP4 for Corgi3D {
 
     fn transfer(&mut self, new_owner_id: AccountId, token_id: TokenId) {
         let token_owner_account_id = self.get_token_owner(token_id);
-        let token_owner_account_hash = env::sha256(token_owner_account_id.as_bytes());
         let predecessor = env::predecessor_account_id();
         if predecessor != token_owner_account_id {
             env::panic(b"Attempt to call transfer on tokens belonging to another account.")
         }
-        self.account_corgis.get(&token_owner_account_hash).unwrap().remove(&token_id);
+        self.delete_corgi_from_account(token_id, token_owner_account_id);
         self.save_corgi_to_account(token_id, new_owner_id)
     }
 
     fn transfer_from(&mut self, owner_id: AccountId, new_owner_id: AccountId, token_id: TokenId) {
         let token_owner_account_id = self.get_token_owner(token_id);
-        let token_owner_account_hash = env::sha256(token_owner_account_id.as_bytes());
         if owner_id != token_owner_account_id {
             env::panic(b"Attempt to transfer a token from a different owner.")
         }
 
-        if !self.check_access(token_owner_account_id) {
+        if !self.check_access(token_owner_account_id.clone()) {
             env::panic(b"Attempt to transfer a token with no access.")
         }
-        self.account_corgis.get(&token_owner_account_hash).unwrap().remove(&token_id);
+        self.delete_corgi_from_account(token_id, token_owner_account_id);
         self.save_corgi_to_account(token_id, new_owner_id)
     }
 
@@ -319,6 +313,14 @@ impl Corgi3D {
         seed[24..32].copy_from_slice(&id);
         let mut rng1 = ChaCha20Rng::from_seed(seed);
         (rng1.next_u32() % 100, rng1.next_u32() % 50)
+    }
+
+    fn delete_corgi_from_account(&mut self, id: TokenId, account: AccountId) {
+        self.corgi_to_account.remove(&id);
+        let account_hash = env::sha256(account.as_bytes());
+        let mut account_corgis = self.account_corgis.get(&account_hash).unwrap();
+        account_corgis.remove(&id);
+        self.account_corgis.insert(&account_hash, &account_corgis);
     }
 
     fn save_corgi_to_account(&mut self, id: TokenId, account: AccountId) {
