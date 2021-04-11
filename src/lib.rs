@@ -3,8 +3,9 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::UnorderedMap;
 use near_sdk::collections::UnorderedSet;
+use near_sdk::json_types::U128;
 use near_sdk::serde::Serialize;
-use near_sdk::{env, near_bindgen, AccountId};
+use near_sdk::{env, near_bindgen, AccountId, Promise};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 
@@ -47,7 +48,7 @@ pub type TokenId = u64;
 pub type AccountIdHash = Vec<u8>;
 
 // A Corgi
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Default, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Debug)]
 pub struct Corgi {
     pub id: TokenId,
     pub name: String,
@@ -58,6 +59,8 @@ pub struct Corgi {
     pub sausage: String,
     pub sender: String,
     pub message: String,
+    pub selling: bool,
+    pub selling_price: U128,
 }
 
 // Begin implementation
@@ -190,11 +193,43 @@ impl Corgi3D {
             quote,
             rate,
             sausage,
-            ..Default::default()
+            selling: false,
+            selling_price: U128(0),
+            message: "".to_string(),
+            sender: "".to_string(),
         };
         self.corgis.insert(&id, &corgi);
         self.save_corgi_to_account(id, predecessor);
         (name, id)
+    }
+
+    pub fn sell_corgi(&mut self, id: TokenId, price: U128) {
+        let mut corgi = self.corgis.get(&id).expect("Corgi not found");
+        let account = self.corgi_to_account.get(&id).unwrap();
+        let predecessor = env::predecessor_account_id();
+        if account == predecessor || self.check_access(account.clone()) {
+            corgi.selling = true;
+            corgi.selling_price = price;
+            self.corgis.insert(&id, &corgi);
+        } else {
+            env::panic(b"Don't have permission to sell corgi");
+        }
+    }
+
+    #[payable]
+    pub fn buy_corgi(&mut self, id: TokenId) -> Promise {
+        let mut corgi = self.corgis.get(&id).expect("Corgi not found");
+        let seller = self.corgi_to_account.get(&id).unwrap();
+        let buyer = env::predecessor_account_id();
+        let attached_deposit = env::attached_deposit();
+        if attached_deposit < corgi.selling_price.0 {
+            env::panic(b"Don't pay enough money to buy corgi");
+        }
+        corgi.selling = false;
+        self.corgis.insert(&id, &corgi);
+        self.delete_corgi_from_account(id, seller.clone());
+        self.save_corgi_to_account(id, buyer);
+        Promise::new(seller).transfer(attached_deposit)
     }
 }
 
@@ -611,5 +646,32 @@ mod tests {
         contract.delete_corgi(token_id);
         assert_eq!(contract.get_corgis_by_owner(robert()).len(), 1);
         assert_eq!(contract.get_corgis_by_owner(robert())[0].name, "a".to_string());
+    }
+
+    #[test]
+    fn test_sell_corgi() {
+        testing_env!(get_context(robert(), 0));
+        let mut contract = Corgi3D::new(robert());
+        let (_, token_id) = contract.create_corgi(
+            "a".to_string(),
+            "blue".to_string(),
+            "green".to_string(),
+            "haha".to_string(),
+        );
+        assert_eq!(contract.get_corgis_by_owner(robert()).len(), 1);
+
+        assert_eq!(contract.get_corgi(token_id).selling, false);
+        contract.sell_corgi(token_id, U128(10u128.pow(25)));
+        assert_eq!(contract.get_corgi(token_id).selling, true);
+        assert_eq!(contract.get_corgi(token_id).selling_price, U128(10u128.pow(25)));
+
+        let mut context = get_context(mike(), env::storage_usage());
+        context.attached_deposit = 10u128.pow(25);
+        testing_env!(context);
+        contract.buy_corgi(token_id);
+
+        assert_eq!(contract.get_corgi(token_id).selling, false);
+        assert_eq!(contract.get_corgis_by_owner(mike()).len(), 1);
+        assert_eq!(contract.get_corgis_by_owner(robert()).len(), 0);
     }
 }
