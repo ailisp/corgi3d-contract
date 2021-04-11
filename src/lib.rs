@@ -166,6 +166,7 @@ impl Corgi3D {
             .collect()
     }
 
+    #[payable]
     pub fn create_corgi(
         &mut self,
         name: String,
@@ -173,6 +174,10 @@ impl Corgi3D {
         background_color: String,
         quote: String,
     ) -> (String, TokenId) {
+        let attached_deposit = env::attached_deposit();
+        if attached_deposit != 3_000_000_000_000_000_000_000_000 {
+            env::panic(b"Each new corgi cost 3 NEAR");
+        }
         let predecessor = env::predecessor_account_id();
         let (rate, sausage) = self.generate_rate_sausage();
         let id = self.next_corgi_id;
@@ -369,7 +374,7 @@ mod tests {
             account_balance: 0,
             account_locked_balance: 0,
             storage_usage,
-            attached_deposit: 0,
+            attached_deposit: 3 * 10u128.pow(24),
             prepaid_gas: 10u64.pow(18),
             random_seed: vec![0, 1, 2],
             is_view: false,
