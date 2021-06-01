@@ -1,5 +1,3 @@
-#![deny(warnings)]
-
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::UnorderedMap;
 use near_sdk::collections::UnorderedSet;
@@ -63,6 +61,19 @@ pub struct Corgi {
     pub selling_price: U128,
 }
 
+const APPLE: usize = 0;
+const AVOCADO: usize = 1;
+const BANANA: usize = 2;
+const CUCUMBER: usize = 3;
+const LEMON: usize = 4;
+const LIME: usize = 5;
+const ORANGE: usize = 6;
+const TOTAL: usize = 7;
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Debug)]
+pub struct Fruit {
+    pub count: [u64; TOTAL],
+}
 // Begin implementation
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -75,9 +86,34 @@ pub struct Corgi3D {
     pub next_corgi_id: TokenId,
 }
 
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct Corgi3DV2 {
+    pub corgi_to_account: UnorderedMap<TokenId, AccountId>,
+    pub account_gives_access: UnorderedMap<AccountIdHash, UnorderedSet<AccountIdHash>>, // Vec<u8> is sha256 of account, makes it safer and is how fungible token also works
+    pub owner_id: AccountId,
+    pub corgis: UnorderedMap<TokenId, Corgi>,
+    pub account_corgis: UnorderedMap<AccountIdHash, UnorderedSet<TokenId>>,
+    pub next_corgi_id: TokenId,
+    pub account_fruit: UnorderedMap<AccountId, Fruit>,
+}
+
 impl Default for Corgi3D {
     fn default() -> Self {
         panic!("NFT should be initialized before usage")
+    }
+}
+
+impl Corgi3DV2 {
+    pub fn from_corgi(corgi: Corgi3D) -> Self {
+        Corgi3DV2 {
+            corgi_to_account: corgi.corgi_to_account,
+            account_gives_access: corgi.account_gives_access,
+            owner_id: corgi.owner_id.clone(),
+            corgis: corgi.corgis,
+            account_corgis: corgi.account_corgis,
+            next_corgi_id: corgi.next_corgi_id,
+            account_fruit: UnorderedMap::new(b"account-fruit".to_vec()),
+        }
     }
 }
 
@@ -86,7 +122,10 @@ impl Default for Corgi3D {
 impl Corgi3D {
     #[init]
     pub fn new(owner_id: AccountId) -> Self {
-        assert!(env::is_valid_account_id(owner_id.as_bytes()), "Owner's account ID is invalid.");
+        assert!(
+            env::is_valid_account_id(owner_id.as_bytes()),
+            "Owner's account ID is invalid."
+        );
         assert!(!env::state_exists(), "Already initialized");
         Self {
             corgi_to_account: UnorderedMap::new(b"corgi-belongs-to".to_vec()),
@@ -96,6 +135,14 @@ impl Corgi3D {
             account_corgis: UnorderedMap::new(b"account-corgis".to_vec()),
             next_corgi_id: 0,
         }
+    }
+
+    pub fn migrate_to_v2(self) {
+        if env::predecessor_account_id() != self.owner_id {
+            env::panic(b"Only owner can upgrade");
+        }
+        let v2 = Corgi3DV2::from_corgi(self);
+        env::state_write(&v2);
     }
 
     pub fn get_corgis_by_owner(&self, owner: AccountId) -> Vec<Corgi> {
@@ -113,7 +160,9 @@ impl Corgi3D {
         let corgi_ids_vec = corgi_ids.as_vector();
         (from_index..std::cmp::min(from_index + limit, corgi_ids.len()))
             .filter_map(|index| {
-                corgi_ids_vec.get(index).map(|corgi_id| self.corgis.get(&corgi_id).unwrap())
+                corgi_ids_vec
+                    .get(index)
+                    .map(|corgi_id| self.corgis.get(&corgi_id).unwrap())
             })
             .collect()
     }
@@ -245,7 +294,8 @@ impl NEP4 for Corgi3D {
             None => UnorderedSet::new(b"new-access-set".to_vec()),
         };
         access_set.insert(&escrow_hash);
-        self.account_gives_access.insert(&predecessor_hash, &access_set);
+        self.account_gives_access
+            .insert(&predecessor_hash, &access_set);
     }
 
     fn revoke_access(&mut self, escrow_account_id: AccountId) {
@@ -258,7 +308,8 @@ impl NEP4 for Corgi3D {
         let escrow_hash = env::sha256(escrow_account_id.as_bytes());
         if existing_set.contains(&escrow_hash) {
             existing_set.remove(&escrow_hash);
-            self.account_gives_access.insert(&predecessor_hash, &existing_set);
+            self.account_gives_access
+                .insert(&predecessor_hash, &existing_set);
             env::log(b"Successfully removed access.")
         } else {
             env::panic(b"Did not find access for escrow ID.")
@@ -428,10 +479,20 @@ mod tests {
         contract.grant_access(mike());
         contract.grant_access(joe());
         let length_after = contract.account_gives_access.len();
-        assert_eq!(1, length_after, "Expected an entry in the account's access Map.");
+        assert_eq!(
+            1, length_after,
+            "Expected an entry in the account's access Map."
+        );
         let predecessor_hash = env::sha256(robert().as_bytes());
-        let num_grantees = contract.account_gives_access.get(&predecessor_hash).unwrap();
-        assert_eq!(2, num_grantees.len(), "Expected two accounts to have access to predecessor.");
+        let num_grantees = contract
+            .account_gives_access
+            .get(&predecessor_hash)
+            .unwrap();
+        assert_eq!(
+            2,
+            num_grantees.len(),
+            "Expected two accounts to have access to predecessor."
+        );
     }
 
     #[test]
@@ -455,7 +516,10 @@ mod tests {
         context = get_context(robert(), env::storage_usage());
         testing_env!(context);
         let mut robert_has_access = contract.check_access(joe());
-        assert_eq!(true, robert_has_access, "After granting access, check_access call failed.");
+        assert_eq!(
+            true, robert_has_access,
+            "After granting access, check_access call failed."
+        );
 
         // Joe revokes access from Robert
         context = get_context(joe(), env::storage_usage());
@@ -466,7 +530,10 @@ mod tests {
         context = get_context(robert(), env::storage_usage());
         testing_env!(context);
         robert_has_access = contract.check_access(joe());
-        assert_eq!(false, robert_has_access, "After revoking access, check_access call failed.");
+        assert_eq!(
+            false, robert_has_access,
+            "After revoking access, check_access call failed."
+        );
     }
 
     #[test]
@@ -527,7 +594,11 @@ mod tests {
 
         // Check new owner
         let owner = contract.get_token_owner(token_id.clone());
-        assert_eq!(joe(), owner, "Token was not transferred after transfer call with escrow.");
+        assert_eq!(
+            joe(),
+            owner,
+            "Token was not transferred after transfer call with escrow."
+        );
     }
 
     #[test]
@@ -573,7 +644,11 @@ mod tests {
 
         // Check new owner
         let owner = contract.get_token_owner(token_id.clone());
-        assert_eq!(joe(), owner, "Token was not transferred after transfer call with escrow.");
+        assert_eq!(
+            joe(),
+            owner,
+            "Token was not transferred after transfer call with escrow."
+        );
     }
 
     #[test]
@@ -620,7 +695,11 @@ mod tests {
 
         // Check new owner
         let owner = contract.get_token_owner(token_id.clone());
-        assert_eq!(joe(), owner, "Token was not transferred after transfer call with escrow.");
+        assert_eq!(
+            joe(),
+            owner,
+            "Token was not transferred after transfer call with escrow."
+        );
     }
 
     #[test]
@@ -645,7 +724,10 @@ mod tests {
 
         contract.delete_corgi(token_id);
         assert_eq!(contract.get_corgis_by_owner(robert()).len(), 1);
-        assert_eq!(contract.get_corgis_by_owner(robert())[0].name, "a".to_string());
+        assert_eq!(
+            contract.get_corgis_by_owner(robert())[0].name,
+            "a".to_string()
+        );
     }
 
     #[test]
@@ -663,7 +745,10 @@ mod tests {
         assert_eq!(contract.get_corgi(token_id).selling, false);
         contract.sell_corgi(token_id, U128(10u128.pow(25)));
         assert_eq!(contract.get_corgi(token_id).selling, true);
-        assert_eq!(contract.get_corgi(token_id).selling_price, U128(10u128.pow(25)));
+        assert_eq!(
+            contract.get_corgi(token_id).selling_price,
+            U128(10u128.pow(25))
+        );
 
         let mut context = get_context(mike(), env::storage_usage());
         context.attached_deposit = 10u128.pow(25);
