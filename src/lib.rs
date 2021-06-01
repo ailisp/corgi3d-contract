@@ -6,6 +6,7 @@ use near_sdk::serde::Serialize;
 use near_sdk::{env, near_bindgen, AccountId, Promise};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
+use std::{collections::HashSet, iter::FromIterator};
 
 #[global_allocator]
 static ALLOC: near_sdk::wee_alloc::WeeAlloc = near_sdk::wee_alloc::WeeAlloc::INIT;
@@ -75,7 +76,7 @@ pub struct Fruit {
     pub count: [u64; TOTAL],
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Debug, PartialEq, Eq, Hash, Clone)]
 pub struct MazeFruit {
     kind: u64,
     x: u64,
@@ -264,6 +265,44 @@ impl Corgi3D {
         self.save_corgi_to_account(id, buyer);
         Promise::new(seller).transfer(attached_deposit)
     }
+
+    pub fn new_maze_game(&mut self) -> MazeGame {
+        let predecessor = env::predecessor_account_id();
+        let mut fruit = HashSet::new();
+        let mut rng = self.random_rng();
+        let total = 10 + rng.next_u32() % 10;
+        for _ in 0..total {
+            let kind = (rng.next_u32() % (TOTAL as u32)) as u64;
+            let x = (rng.next_u32() % 10) as u64;
+            let y = (rng.next_u32() % 10) as u64;
+            fruit.insert(MazeFruit { kind, x, y });
+        }
+        let game = MazeGame {
+            fruit: Vec::from_iter(fruit),
+        };
+        self.account_maze_game.insert(&predecessor, &game);
+        game
+    }
+
+    pub fn finish_maze_game(&mut self, eat: Vec<MazeFruit>) {
+        let predecessor = env::predecessor_account_id();
+        let game = self.account_maze_game.get(&predecessor).unwrap();
+        let mut fruit: HashSet<_> = HashSet::from_iter(game.fruit);
+        let mut account_fruit = self.account_fruit(predecessor.clone());
+        for e in eat {
+            if fruit.remove(&e) {
+                account_fruit.count[e.kind as usize] += 1;
+            }
+        }
+        self.account_fruit.insert(&predecessor, &account_fruit);
+        self.account_maze_game.remove(&predecessor);
+    }
+
+    pub fn account_fruit(&self, account_id: AccountId) -> Fruit {
+        self.account_fruit.get(&account_id).unwrap_or(Fruit {
+            count: [0u64; TOTAL],
+        })
+    }
 }
 
 #[near_bindgen]
@@ -379,14 +418,18 @@ impl Corgi3D {
         return (rarity.to_string(), sausage.to_string());
     }
 
-    fn random_num(&self) -> (u32, u32) {
+    fn random_rng(&self) -> ChaCha20Rng {
         let mut seed = [0u8; 32];
         let v = env::random_seed();
         let l = std::cmp::min(24, v.len());
         seed[0..l].copy_from_slice(&v[0..l]);
         let id = self.next_corgi_id.to_le_bytes();
         seed[24..32].copy_from_slice(&id);
-        let mut rng1 = ChaCha20Rng::from_seed(seed);
+        ChaCha20Rng::from_seed(seed)
+    }
+
+    fn random_num(&self) -> (u32, u32) {
+        let mut rng1 = self.random_rng();
         (rng1.next_u32() % 100, rng1.next_u32() % 50)
     }
 
@@ -742,5 +785,26 @@ mod tests {
         assert_eq!(contract.get_corgi(token_id).selling, false);
         assert_eq!(contract.get_corgis_by_owner(mike()).len(), 1);
         assert_eq!(contract.get_corgis_by_owner(robert()).len(), 0);
+    }
+
+    #[test]
+    fn test_maze_game() {
+        testing_env!(get_context(robert(), 0));
+        let mut contract = Corgi3D::new(robert());
+        let (_, token_id) = contract.create_corgi(
+            "a".to_string(),
+            "blue".to_string(),
+            "green".to_string(),
+            "haha".to_string(),
+        );
+
+        let game = contract.new_maze_game();
+        let mut count = [0u64; TOTAL];
+        for f in HashSet::<_>::from_iter(game.fruit.clone()) {
+            count[f.kind as usize] += 1;
+        }
+        contract.finish_maze_game(game.fruit);
+        let account_fruit = contract.account_fruit(robert());
+        assert_eq!(account_fruit.count, count);
     }
 }
