@@ -74,6 +74,19 @@ const TOTAL: usize = 7;
 pub struct Fruit {
     pub count: [u64; TOTAL],
 }
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Debug)]
+pub struct MazeFruit {
+    kind: u64,
+    x: u64,
+    y: u64,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Debug)]
+pub struct MazeGame {
+    pub fruit: Vec<MazeFruit>,
+}
+
 // Begin implementation
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -85,6 +98,33 @@ pub struct Corgi3D {
     pub account_corgis: UnorderedMap<AccountIdHash, UnorderedSet<TokenId>>,
     pub next_corgi_id: TokenId,
     pub account_fruit: UnorderedMap<AccountId, Fruit>,
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct Corgi3DV3 {
+    pub corgi_to_account: UnorderedMap<TokenId, AccountId>,
+    pub account_gives_access: UnorderedMap<AccountIdHash, UnorderedSet<AccountIdHash>>, // Vec<u8> is sha256 of account, makes it safer and is how fungible token also works
+    pub owner_id: AccountId,
+    pub corgis: UnorderedMap<TokenId, Corgi>,
+    pub account_corgis: UnorderedMap<AccountIdHash, UnorderedSet<TokenId>>,
+    pub next_corgi_id: TokenId,
+    pub account_fruit: UnorderedMap<AccountId, Fruit>,
+    pub account_maze_game: UnorderedMap<AccountId, MazeGame>,
+}
+
+impl Corgi3DV3 {
+    pub fn from_corgi(corgi: Corgi3D) -> Self {
+        Corgi3DV3 {
+            corgi_to_account: corgi.corgi_to_account,
+            account_gives_access: corgi.account_gives_access,
+            owner_id: corgi.owner_id,
+            corgis: corgi.corgis,
+            account_corgis: corgi.account_corgis,
+            next_corgi_id: corgi.next_corgi_id,
+            account_fruit: corgi.account_fruit,
+            account_maze_game: UnorderedMap::new(b"account-maze-game".to_vec()),
+        }
+    }
 }
 
 impl Default for Corgi3D {
@@ -112,6 +152,14 @@ impl Corgi3D {
             next_corgi_id: 0,
             account_fruit: UnorderedMap::new(b"account-fruit".to_vec()),
         }
+    }
+
+    pub fn migrate_to_v3(self) {
+        if env::predecessor_account_id() != self.owner_id {
+            env::panic(b"Only owner can upgrade");
+        }
+        let v3 = Corgi3DV3::from_corgi(self);
+        env::state_write(&v3);
     }
 
     pub fn get_corgis_by_owner(&self, owner: AccountId) -> Vec<Corgi> {
