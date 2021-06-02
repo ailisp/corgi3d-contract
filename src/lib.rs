@@ -2,7 +2,7 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::UnorderedMap;
 use near_sdk::collections::UnorderedSet;
 use near_sdk::json_types::U128;
-use near_sdk::serde::Serialize;
+use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{env, near_bindgen, AccountId, Promise};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -76,7 +76,9 @@ pub struct Fruit {
     pub count: [u64; TOTAL],
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(
+    BorshDeserialize, BorshSerialize, Serialize, Debug, PartialEq, Eq, Hash, Clone, Deserialize,
+)]
 pub struct MazeFruit {
     kind: u64,
     x: u64,
