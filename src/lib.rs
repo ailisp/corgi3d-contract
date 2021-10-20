@@ -49,6 +49,19 @@ pub trait NEP171 {
         token_id: TokenId,
         message: String,
     );
+
+    pub fn nft_total_supply(&self) -> String;
+
+    pub fn nft_tokens(&self, from_index: u64, limit: u64)-> Vec<Corgi>;
+
+    pub fn nft_supply_for_owner(&self, account_id: AccountId) -> String;
+
+    pub fn nft_tokens_for_owner(
+        &self, 
+        account_id: AccountId,
+        from_index: u64, 
+        limit: u64
+    )-> Vec<Corgi>
 }
 
 /// The token ID type is also defined in the NEP
