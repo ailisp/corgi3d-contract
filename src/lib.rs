@@ -13,7 +13,7 @@ static ALLOC: near_sdk::wee_alloc::WeeAlloc = near_sdk::wee_alloc::WeeAlloc::INI
 
 /// This trait provides the baseline of functions as described at:
 /// https://github.com/nearprotocol/NEPs/blob/nep-4/specs/Standards/Tokens/NonFungibleToken.md
-pub trait NEP4 {
+pub trait NEP171 {
     // Grant the access to the given `accountId` for the given `tokenId`.
     // Requirements:
     // * The caller of the function (`predecessor_id`) should have access to the token.
@@ -40,11 +40,21 @@ pub trait NEP4 {
 
     // Get an individual owner by given `tokenId`.
     fn get_token_owner(&self, token_id: TokenId) -> String;
+
+    // follow nep 171 get token
+    pub fn nft_token(&self,token_id: TokenId);
+
+    pub fn nft_transfer(&mut self,
+        new_owner_id: AccountId,
+        token_id: TokenId,
+        message: String,
+    );
 }
 
 /// The token ID type is also defined in the NEP
 pub type TokenId = u64;
 pub type AccountIdHash = Vec<u8>;
+
 
 // A Corgi
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Debug)]
@@ -110,7 +120,7 @@ impl Default for Corgi3D {
     }
 }
 
-/// Methods not in the strict scope of the NFT spec (NEP4)
+/// Methods not in the strict scope of the NFT spec (NEP171)
 #[near_bindgen]
 impl Corgi3D {
     #[init]
@@ -308,7 +318,7 @@ impl Corgi3D {
 }
 
 #[near_bindgen]
-impl NEP4 for Corgi3D {
+impl NEP171 for Corgi3D {
     fn grant_access(&mut self, escrow_account_id: AccountId) {
         let escrow_hash = env::sha256(escrow_account_id.as_bytes());
         let predecessor = env::predecessor_account_id();
@@ -386,6 +396,43 @@ impl NEP4 for Corgi3D {
             None => env::panic(b"No owner of the token ID specified"),
         }
     }
+
+    // follow nep 171
+    pub fn nft_token(&self,token_id: TokenId) -> Corgi {
+        self.get_corgi(token_id)
+    }
+
+    pub fn nft_transfer(&mut self,
+            new_owner_id: AccountId,
+            token_id: TokenId,
+            message: String,
+        ){
+            self.transfer_with_message(new_owner_id, token_id, message)
+    }
+
+    // Enumeration
+
+    pub fn nft_total_supply(&self)-> String {
+        "1000000000".to_string()
+    }
+
+    pub fn nft_tokens(&self, from_index: u64, limit: u64)-> Vec<Corgi> {
+        self.display_global_corgis_range(from_index, limit)
+    }
+
+    pub fn nft_supply_for_owner(&self, account_id: AccountId) -> String {
+        "Unlimited, Just make it".to_string()
+    }
+
+    pub fn nft_tokens_for_owner(
+        &self, 
+        account_id: AccountId,
+        from_index: u64, 
+        limit: u64
+    )-> Vec<Corgi> {
+        self.get_corgis_by_owner_range(account_id, from_index, limit)
+    }
+
 }
 
 // Helper methods
