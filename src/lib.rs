@@ -42,26 +42,26 @@ pub trait NEP171 {
     fn get_token_owner(&self, token_id: TokenId) -> String;
 
     // follow nep 171 get token
-    pub fn nft_token(&self,token_id: TokenId);
+    fn nft_token(&self,token_id: TokenId)-> Corgi;
 
-    pub fn nft_transfer(&mut self,
+    fn nft_transfer(&mut self,
         new_owner_id: AccountId,
         token_id: TokenId,
         message: String,
     );
 
-    pub fn nft_total_supply(&self) -> String;
+    fn nft_total_supply(&self) -> String;
 
-    pub fn nft_tokens(&self, from_index: u64, limit: u64)-> Vec<Corgi>;
+    fn nft_tokens(&self, from_index: u64, limit: u64)-> Vec<Corgi>;
 
-    pub fn nft_supply_for_owner(&self, account_id: AccountId) -> String;
+    fn nft_supply_for_owner(&self, account_id: AccountId) -> String;
 
-    pub fn nft_tokens_for_owner(
+    fn nft_tokens_for_owner(
         &self, 
         account_id: AccountId,
         from_index: u64, 
         limit: u64
-    )-> Vec<Corgi>
+    )-> Vec<Corgi>;
 }
 
 /// The token ID type is also defined in the NEP
@@ -411,11 +411,11 @@ impl NEP171 for Corgi3D {
     }
 
     // follow nep 171
-    pub fn nft_token(&self,token_id: TokenId) -> Corgi {
+    fn nft_token(&self,token_id: TokenId) -> Corgi {
         self.get_corgi(token_id)
     }
 
-    pub fn nft_transfer(&mut self,
+    fn nft_transfer(&mut self,
             new_owner_id: AccountId,
             token_id: TokenId,
             message: String,
@@ -425,19 +425,19 @@ impl NEP171 for Corgi3D {
 
     // Enumeration
 
-    pub fn nft_total_supply(&self)-> String {
+    fn nft_total_supply(&self)-> String {
         "1000000000".to_string()
     }
 
-    pub fn nft_tokens(&self, from_index: u64, limit: u64)-> Vec<Corgi> {
+    fn nft_tokens(&self, from_index: u64, limit: u64)-> Vec<Corgi> {
         self.display_global_corgis_range(from_index, limit)
     }
 
-    pub fn nft_supply_for_owner(&self, account_id: AccountId) -> String {
+    fn nft_supply_for_owner(&self, account_id: AccountId) -> String {
         "Unlimited, Just make it".to_string()
     }
 
-    pub fn nft_tokens_for_owner(
+    fn nft_tokens_for_owner(
         &self, 
         account_id: AccountId,
         from_index: u64, 
